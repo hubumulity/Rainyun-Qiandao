@@ -152,7 +152,8 @@ def check_login_status(ctx: RuntimeContext) -> bool:
 # 定位符常量化 (让维护更简单)
 XPATH_CONFIG = {
     "LOGIN_BTN": "//button[@type='submit' and contains(., '登') and contains(., '录')]",
-    "SIGN_IN_BTN": "//div[contains(@class, 'card-header') and .//span[contains(text(), '每日签到')]]//a[contains(text(), '领取奖励')]",
+    # 兼容新版签到区域：根据“每日签到”标题 + “领取奖励”文案 + 奖励页 href 定位按钮
+    "SIGN_IN_BTN": "//div[.//span[contains(normalize-space(.), '每日签到')]]//a[contains(normalize-space(.), '领取奖励') and contains(@href, '/account/reward/earn')]",
     # 验证码相关定位符统一为 (By, selector) 结构，避免 ID/XPath 混用
     "CAPTCHA_SUBMIT": (By.XPATH, "//div[@id='tcStatus']/div[2]/div[2]/div/div"),
     "CAPTCHA_RELOAD": (By.ID, "reload"),
@@ -559,11 +560,12 @@ def run():
         logger.info("正在转到赚取积分页")
         ctx.driver.get(build_app_url("/account/reward/earn"))
 
-        # 检查签到状态：使用 card-header 语义化定位，彻底消除位置依赖
+        # 检查签到状态：使用统一 XPath 配置，兼容页面改版
         try:
-            # 使用显示等待寻找按钮
-            earn = ctx.wait.until(EC.presence_of_element_located((By.XPATH,
-                                       "//div[contains(@class, 'card-header') and .//span[contains(text(), '每日签到')]]//a[contains(text(), '领取奖励')]")))
+            # 使用可点击等待，避免元素已出现但不可点
+            earn = ctx.wait.until(
+                EC.element_to_be_clickable((By.XPATH, XPATH_CONFIG["SIGN_IN_BTN"]))
+            )
             logger.info("点击赚取积分")
             earn.click()
         except TimeoutException:
